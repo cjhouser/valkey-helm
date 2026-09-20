@@ -125,10 +125,20 @@ data:
     {{- end }}
 
     {{- if .Values.auth.aclUsers }}
+    {{- if and .Values.auth.persistence .Values.dataStorage.enabled }}
+    # Delete managed user entries
+    while IFS= read -r MANAGED_USER; do
+      sed -i "/^user $MANAGED_USER /d" $ACL_FILE_PATH/users.acl
+    done < "$ACL_FILE_PATH/managed-users"
+    > $ACL_FILE_PATH/managed-users
+    {{- end }}
     # Generate ACL entries for each user
     log "Generating ACL entries for users"
     {{- range $username, $user := .Values.auth.aclUsers }}
     {{- $passwordKey := $user.passwordKey | default $username }}
+
+    # Delete existing user entry
+    sed -i '/^user {{ $username }} /d' $ACL_FILE_PATH/users.acl
 
     # User: {{ $username }}
     PASSWORD=$(get_user_password "{{ $username }}" "{{ $passwordKey }}") || exit 1
