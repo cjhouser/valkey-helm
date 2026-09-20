@@ -118,6 +118,12 @@ data:
     touch $ACL_FILE_PATH/users.acl
     chmod 0600 $ACL_FILE_PATH/users.acl
 
+    {{- if and .Values.auth.persistence .Values.dataStorage.enabled }}
+    # Create list of users managed via release values
+    touch $ACL_FILE_PATH/managed-users
+    chmod 0600 $ACL_FILE_PATH/managed-users
+    {{- end }}
+
     {{- if .Values.auth.aclUsers }}
     # Generate ACL entries for each user
     log "Generating ACL entries for users"
@@ -131,6 +137,10 @@ data:
     PASSHASH=$(echo -n "$PASSWORD" | sha256sum | cut -f 1 -d " ")
     echo "user {{ $username }} on #$PASSHASH {{ $user.permissions }}" >> $ACL_FILE_PATH/users.acl
 
+    {{- if $.Values.auth.persistence }}
+    # Keep track of users managed in auth.aclUsers
+    echo "{{ $username }}" >> $ACL_FILE_PATH/managed-users
+    {{- end }}
     {{- end }}
     {{- end }}
 
@@ -139,10 +149,17 @@ data:
     log "Appending custom ACL configuration"
     if [ -f /valkey-auth-secret/aclConfig ]; then
       cat /valkey-auth-secret/aclConfig >> $ACL_FILE_PATH/users.acl
+      {{- if .Values.auth.persistence }}
+      # Keep track of users managed in auth.aclConfig
+      sed -nE 's/^user ([^ ]+).*/\1/p' /valkey-auth-secret/aclConfig >> $ACL_FILE_PATH/managed-users
+      {{- end }}
     fi
     {{- end }}
 
     # Set final permissions
+    {{- if and .Values.auth.persistence .Values.dataStorage.enabled }}
+    chmod 0400 $ACL_FILE_PATH/managed-users
+    {{- end }}
     chmod 0400 $ACL_FILE_PATH/users.acl
     log "ACL file created with 0400 permissions"
     {{- end }}
