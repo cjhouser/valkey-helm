@@ -95,24 +95,26 @@ data:
     } >>"$VALKEY_CONFIG"
 
     {{- if .Values.auth.enabled }}
+    ACL_FILE_PATH=/etc/valkey
+
     # Create secure directory for ACL file
-    log "Creating /etc/valkey directory for ACL file"
-    mkdir -p /etc/valkey
+    log "Creating $ACL_FILE_PATH directory for ACL file"
+    mkdir -p $ACL_FILE_PATH
 
     # Set aclfile path in valkey.conf
-    echo "aclfile /etc/valkey/users.acl" >>"$VALKEY_CONFIG"
+    echo "aclfile $ACL_FILE_PATH/users.acl" >>"$VALKEY_CONFIG"
 
     # Remove or reset existing ACL file if present (it may be read-only from previous run)
-    log "Preparing ACL file at /etc/valkey/users.acl"
-    if [ -f /etc/valkey/users.acl ]; then
+    log "Preparing ACL file at $ACL_FILE_PATH/users.acl"
+    if [ -f $ACL_FILE_PATH/users.acl ]; then
       log "Removing existing read-only users.acl file"
-      chmod 0600 /etc/valkey/users.acl
-      rm -f /etc/valkey/users.acl
+      chmod 0600 $ACL_FILE_PATH/users.acl
+      rm -f $ACL_FILE_PATH/users.acl
     fi
 
     # Create ACL file with secure permissions
-    touch /etc/valkey/users.acl
-    chmod 0600 /etc/valkey/users.acl
+    touch $ACL_FILE_PATH/users.acl
+    chmod 0600 $ACL_FILE_PATH/users.acl
 
     {{- if .Values.auth.aclUsers }}
     # Generate ACL entries for each user
@@ -125,7 +127,7 @@ data:
 
     # Hash the password and write ACL entry
     PASSHASH=$(echo -n "$PASSWORD" | sha256sum | cut -f 1 -d " ")
-    echo "user {{ $username }} on #$PASSHASH {{ $user.permissions }}" >> /etc/valkey/users.acl
+    echo "user {{ $username }} on #$PASSHASH {{ $user.permissions }}" >> $ACL_FILE_PATH/users.acl
 
     {{- end }}
     {{- end }}
@@ -134,12 +136,12 @@ data:
     # Append inline ACL configuration
     log "Appending custom ACL configuration"
     if [ -f /valkey-auth-secret/aclConfig ]; then
-      cat /valkey-auth-secret/aclConfig >> /etc/valkey/users.acl
+      cat /valkey-auth-secret/aclConfig >> $ACL_FILE_PATH/users.acl
     fi
     {{- end }}
 
     # Set final permissions
-    chmod 0400 /etc/valkey/users.acl
+    chmod 0400 $ACL_FILE_PATH/users.acl
     log "ACL file created with 0400 permissions"
     {{- end }}
 
