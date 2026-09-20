@@ -105,12 +105,14 @@ data:
     echo "aclfile $ACL_FILE_PATH/users.acl" >>"$VALKEY_CONFIG"
 
     # Remove or reset existing ACL file if present (it may be read-only from previous run)
+    {{- if not .Values.auth.persistence }}
     log "Preparing ACL file at $ACL_FILE_PATH/users.acl"
     if [ -f $ACL_FILE_PATH/users.acl ]; then
       log "Removing existing read-only users.acl file"
       chmod 0600 $ACL_FILE_PATH/users.acl
       rm -f $ACL_FILE_PATH/users.acl
     fi
+    {{- end }}
 
     # Create ACL file with secure permissions
     touch $ACL_FILE_PATH/users.acl
