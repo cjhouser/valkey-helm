@@ -19,6 +19,9 @@
                 },
                 "usersExistingSecret": {
                     "type": "string"
+                },
+                "persistence": {
+                    "type": "boolean"
                 }
             }
         },

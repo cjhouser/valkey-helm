@@ -214,6 +214,13 @@ auth:
   # credentials, creating a security risk.
   enabled: false
 
+  # Saves ACL configuration in the data storage volume so that ACL configuration is not lost
+  # after Pod replacement in standalone deployments. An init container merges the configuration
+  # specified in values file with what exists in the data volume; users configured in the values
+  # will overwrite conflicting entries. `dataStorage.enabled` must be enabled when this is set to
+  # true.
+  persistence: false
+
   # Use an existing secret for user passwords. Key defaults to username.
   # Supports templating, e.g.: "users-{{ .Release.Name }}"
   usersExistingSecret: ""

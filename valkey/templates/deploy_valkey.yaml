@@ -1,4 +1,11 @@
 {{- if not .Values.replica.enabled }}
+{{/*
+The persistence datastore must be appropriately segmented when ACL
+persistence is enabled.
+*/}}
+{{- if and .Values.auth.persistence (eq .Values.dataStorage.subPath "acl") }}
+  {{- fail "Validation Error: 'dataStorage.subPath' cannot be 'acl' when 'auth.persistence' is true." }}
+{{- end }}
 {{- $fullname := include "valkey.fullname" . }}
 {{- $storage := .Values.dataStorage }}
 {{- $createPVC := and $storage.enabled (not (empty $storage.requestedSize)) (empty $storage.persistentVolumeClaimName) }}
@@ -77,8 +84,10 @@ spec:
               mountPath: /extravalkeyconfigs
             {{- end }}
             {{- if .Values.auth.enabled }}
+            {{- if not .Values.auth.persistence }}
             - name: valkey-acl
               mountPath: /etc/valkey
+            {{- end }}
             {{- if .Values.auth.usersExistingSecret }}
             - name: valkey-users-secret
               mountPath: /valkey-users-secret
@@ -134,7 +143,7 @@ spec:
             - name: {{ include "valkey.fullname" . }}-tls
               mountPath: /tls
             {{- end }}
-            {{- if .Values.auth.enabled }}
+            {{- if and .Values.auth.enabled (not .Values.auth.persistence) }}
             - name: valkey-acl
               mountPath: /etc/valkey
             {{- end }}
@@ -216,7 +225,7 @@ spec:
           configMap:
             name: {{ include "valkey.fullname" . }}-init-scripts
             defaultMode: 0555
-        {{- if .Values.auth.enabled }}
+        {{- if and .Values.auth.enabled (not .Values.auth.persistence) }}
         - name: valkey-acl
           emptyDir:
             medium: Memory

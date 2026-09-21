@@ -1,3 +1,9 @@
+{{/*
+A persistence datastore must be defined when ACL persistence is enabled.
+*/}}
+{{- if and .Values.auth.persistence (not .Values.dataStorage.enabled) }}
+  {{- fail "Validation Error: 'auth.persistence' cannot be set to true unless 'dataStorage.enabled' is also set to true." }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -95,38 +101,62 @@ data:
     } >>"$VALKEY_CONFIG"
 
     {{- if .Values.auth.enabled }}
+    ACL_FILE_PATH={{ ternary "/data/acl" "/etc/valkey" .Values.auth.persistence }}
+
     # Create secure directory for ACL file
-    log "Creating /etc/valkey directory for ACL file"
-    mkdir -p /etc/valkey
+    log "Creating $ACL_FILE_PATH directory for ACL file"
+    mkdir -p $ACL_FILE_PATH
 
     # Set aclfile path in valkey.conf
-    echo "aclfile /etc/valkey/users.acl" >>"$VALKEY_CONFIG"
+    echo "aclfile $ACL_FILE_PATH/users.acl" >>"$VALKEY_CONFIG"
 
     # Remove or reset existing ACL file if present (it may be read-only from previous run)
-    log "Preparing ACL file at /etc/valkey/users.acl"
-    if [ -f /etc/valkey/users.acl ]; then
+    {{- if not .Values.auth.persistence }}
+    log "Preparing ACL file at $ACL_FILE_PATH/users.acl"
+    if [ -f $ACL_FILE_PATH/users.acl ]; then
       log "Removing existing read-only users.acl file"
-      chmod 0600 /etc/valkey/users.acl
-      rm -f /etc/valkey/users.acl
+      chmod 0600 $ACL_FILE_PATH/users.acl
+      rm -f $ACL_FILE_PATH/users.acl
     fi
+    {{- end }}
 
     # Create ACL file with secure permissions
-    touch /etc/valkey/users.acl
-    chmod 0600 /etc/valkey/users.acl
+    touch $ACL_FILE_PATH/users.acl
+    chmod 0600 $ACL_FILE_PATH/users.acl
+
+    {{- if .Values.auth.persistence }}
+    # Create list of users managed via release values
+    touch $ACL_FILE_PATH/managed-users
+    chmod 0600 $ACL_FILE_PATH/managed-users
+    {{- end }}
 
     {{- if .Values.auth.aclUsers }}
+    {{- if .Values.auth.persistence }}
+    # Delete managed user entries
+    while IFS= read -r MANAGED_USER; do
+      sed -i "/^user $MANAGED_USER /d" $ACL_FILE_PATH/users.acl
+    done < "$ACL_FILE_PATH/managed-users"
+    > $ACL_FILE_PATH/managed-users
+    {{- end }}
     # Generate ACL entries for each user
     log "Generating ACL entries for users"
     {{- range $username, $user := .Values.auth.aclUsers }}
     {{- $passwordKey := $user.passwordKey | default $username }}
+
+    # Delete existing user entry
+    sed -i '/^user {{ $username }} /d' $ACL_FILE_PATH/users.acl
 
     # User: {{ $username }}
     PASSWORD=$(get_user_password "{{ $username }}" "{{ $passwordKey }}") || exit 1
 
     # Hash the password and write ACL entry
     PASSHASH=$(echo -n "$PASSWORD" | sha256sum | cut -f 1 -d " ")
-    echo "user {{ $username }} on #$PASSHASH {{ $user.permissions }}" >> /etc/valkey/users.acl
+    echo "user {{ $username }} on #$PASSHASH {{ $user.permissions }}" >> $ACL_FILE_PATH/users.acl
 
+    {{- if $.Values.auth.persistence }}
+    # Keep track of users managed in auth.aclUsers
+    echo "{{ $username }}" >> $ACL_FILE_PATH/managed-users
+    {{- end }}
     {{- end }}
     {{- end }}
 
@@ -134,12 +164,19 @@ data:
     # Append inline ACL configuration
     log "Appending custom ACL configuration"
     if [ -f /valkey-auth-secret/aclConfig ]; then
-      cat /valkey-auth-secret/aclConfig >> /etc/valkey/users.acl
+      cat /valkey-auth-secret/aclConfig >> $ACL_FILE_PATH/users.acl
+      {{- if .Values.auth.persistence }}
+      # Keep track of users managed in auth.aclConfig
+      sed -nE 's/^user ([^ ]+).*/\1/p' /valkey-auth-secret/aclConfig >> $ACL_FILE_PATH/managed-users
+      {{- end }}
     fi
     {{- end }}
 
     # Set final permissions
-    chmod 0400 /etc/valkey/users.acl
+    {{- if .Values.auth.persistence }}
+    chmod 0400 $ACL_FILE_PATH/managed-users
+    {{- end }}
+    chmod 0400 $ACL_FILE_PATH/users.acl
     log "ACL file created with 0400 permissions"
     {{- end }}
 
