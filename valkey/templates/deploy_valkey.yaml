@@ -84,8 +84,10 @@ spec:
               mountPath: /extravalkeyconfigs
             {{- end }}
             {{- if .Values.auth.enabled }}
+            {{- if not .Values.auth.persistence }}
             - name: valkey-acl
               mountPath: /etc/valkey
+            {{- end }}
             {{- if .Values.auth.usersExistingSecret }}
             - name: valkey-users-secret
               mountPath: /valkey-users-secret
@@ -141,7 +143,7 @@ spec:
             - name: {{ include "valkey.fullname" . }}-tls
               mountPath: /tls
             {{- end }}
-            {{- if .Values.auth.enabled }}
+            {{- if and .Values.auth.enabled (not .Values.auth.persistence) }}
             - name: valkey-acl
               mountPath: /etc/valkey
             {{- end }}
@@ -223,7 +225,7 @@ spec:
           configMap:
             name: {{ include "valkey.fullname" . }}-init-scripts
             defaultMode: 0555
-        {{- if .Values.auth.enabled }}
+        {{- if and .Values.auth.enabled (not .Values.auth.persistence) }}
         - name: valkey-acl
           emptyDir:
             medium: Memory
