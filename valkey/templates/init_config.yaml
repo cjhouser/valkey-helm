@@ -1,3 +1,9 @@
+{{/*
+A persistence datastore must be defined when ACL persistence is enabled.
+*/}}
+{{- if and .Values.auth.persistence (not .Values.dataStorage.enabled) }}
+  {{- fail "Validation Error: 'auth.persistence' cannot be set to true unless 'dataStorage.enabled' is also set to true." }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -118,14 +124,14 @@ data:
     touch $ACL_FILE_PATH/users.acl
     chmod 0600 $ACL_FILE_PATH/users.acl
 
-    {{- if and .Values.auth.persistence .Values.dataStorage.enabled }}
+    {{- if .Values.auth.persistence }}
     # Create list of users managed via release values
     touch $ACL_FILE_PATH/managed-users
     chmod 0600 $ACL_FILE_PATH/managed-users
     {{- end }}
 
     {{- if .Values.auth.aclUsers }}
-    {{- if and .Values.auth.persistence .Values.dataStorage.enabled }}
+    {{- if .Values.auth.persistence }}
     # Delete managed user entries
     while IFS= read -r MANAGED_USER; do
       sed -i "/^user $MANAGED_USER /d" $ACL_FILE_PATH/users.acl
@@ -167,7 +173,7 @@ data:
     {{- end }}
 
     # Set final permissions
-    {{- if and .Values.auth.persistence .Values.dataStorage.enabled }}
+    {{- if .Values.auth.persistence }}
     chmod 0400 $ACL_FILE_PATH/managed-users
     {{- end }}
     chmod 0400 $ACL_FILE_PATH/users.acl

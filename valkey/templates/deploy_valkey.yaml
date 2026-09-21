@@ -1,4 +1,11 @@
 {{- if not .Values.replica.enabled }}
+{{/*
+The persistence datastore must be appropriately segmented when ACL
+persistence is enabled.
+*/}}
+{{- if and .Values.auth.persistence (eq .Values.dataStorage.subPath "acl") }}
+  {{- fail "Validation Error: 'dataStorage.subPath' cannot be 'acl' when 'auth.persistence' is true." }}
+{{- end }}
 {{- $fullname := include "valkey.fullname" . }}
 {{- $storage := .Values.dataStorage }}
 {{- $createPVC := and $storage.enabled (not (empty $storage.requestedSize)) (empty $storage.persistentVolumeClaimName) }}
