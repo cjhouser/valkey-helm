@@ -95,7 +95,7 @@ data:
     } >>"$VALKEY_CONFIG"
 
     {{- if .Values.auth.enabled }}
-    ACL_FILE_PATH=/etc/valkey
+    ACL_FILE_PATH={{ ternary "/data/acl" "/etc/valkey" .Values.auth.persistence }}
 
     # Create secure directory for ACL file
     log "Creating $ACL_FILE_PATH directory for ACL file"
